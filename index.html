@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="ur">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Bus Simulator 2024</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #222; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #game-container { position: relative; width: 100vw; height: 100vh; }
+        canvas { display: block; background: linear-gradient(#87CEEB, #228B22); }
+        
+        /* Professional Dashboard */
+        #hud {
+            position: absolute; top: 10px; left: 10px; right: 10px;
+            display: flex; justify-content: space-between;
+            color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+            pointer-events: none;
+        }
+        .stat-box { background: rgba(0,0,0,0.7); padding: 10px 20px; border-radius: 10px; border: 1px solid #444; }
+        .stat-val { font-size: 24px; font-weight: bold; color: #00ff00; }
+
+        /* Controls */
+        #controls {
+            position: absolute; bottom: 20px; width: 100%;
+            display: flex; justify-content: space-around; align-items: flex-end;
+        }
+        .pedal {
+            width: 80px; height: 120px; background: #333; border: 4px solid #555;
+            border-radius: 10px; color: white; font-weight: bold;
+            display: flex; align-items: center; justify-content: center;
+            user-select: none; touch-action: none;
+        }
+        #gas { background: #222; border-color: #444; height: 140px; }
+        #brake { background: #400; border-color: #600; }
+        
+        #gear-system { display: flex; flex-direction: column; gap: 10px; }
+        .gear-btn {
+            width: 60px; height: 60px; background: #444; border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-weight: bold; border: 3px solid #666;
+        }
+        .active-gear { background: #00ff00 !important; color: black; box-shadow: 0 0 15px #00ff00; }
+
+        #message {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.8); color: white; padding: 20px; border-radius: 20px;
+            text-align: center; display: none; z-index: 100;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="hud">
+        <div class="stat-box">SPEED <br> <span id="speedDisplay" class="stat-val">0</span> km/h</div>
+        <div class="stat-box">LEVEL <br> <span id="levelDisplay" class="stat-val">1</span></div>
+        <div class="stat-box">TIME <br> <span id="timeDisplay" class="stat-val">60</span>s</div>
+    </div>
+
+    <div id="message">
+        <h1 id="msgTitle">LEVEL COMPLETE!</h1>
+        <button onclick="nextLevel()" style="padding: 10px 20px; font-size: 20px; cursor: pointer;">Next Mission</button>
+    </div>
+
+    <canvas id="busCanvas"></canvas>
+
+    <div id="controls">
+        <div id="gear-system">
+            <div id="gR" class="gear-btn">R</div>
+            <div id="gN" class="gear-btn active-gear">N</div>
+            <div id="gD" class="gear-btn">D</div>
+        </div>
+        
+        <div id="brake" class="pedal">BRAKE</div>
+        <div id="gas" class="pedal">GAS</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('busCanvas');
+    const ctx = canvas.getContext('2d');
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    // Game State
+    let speed = 0;
+    let gear = 'N'; // R, N, D
+    let time = 60;
+    let level = 1;
+    let isGasPedalDown = false;
+    let isBrakePedalDown = false;
+    let busY = canvas.height - 150;
+    let distance = 0;
+    let goal = 5000;
+
+    // Control Listeners
+    const gasBtn = document.getElementById('gas');
+    const brakeBtn = document.getElementById('brake');
+    
+    ['mousedown', 'touchstart'].forEach(evt => {
+        gasBtn.addEventListener(evt, () => isGasPedalDown = true);
+        brakeBtn.addEventListener(evt, () => isBrakePedalDown = true);
+    });
+
+    ['mouseup', 'touchend'].forEach(evt => {
+        gasBtn.addEventListener(evt, () => isGasPedalDown = false);
+        brakeBtn.addEventListener(evt, () => isBrakePedalDown = false);
+    });
+
+    // Gear Shifting Logic
+    document.querySelectorAll('.gear-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (speed < 5) {
+                document.querySelectorAll('.gear-btn').forEach(b => b.classList.remove('active-gear'));
+                btn.classList.add('active-gear');
+                gear = btn.innerText;
+            }
+        });
+    });
+
+    function update() {
+        // Physics logic
+        if (gear === 'D' && isGasPedalDown) speed += 0.2;
+        else if (gear === 'R' && isGasPedalDown) speed -= 0.2;
+        else speed *= 0.98; // Friction
+
+        if (isBrakePedalDown) speed *= 0.9;
+
+        distance += speed;
+        
+        // Speed Display update
+        document.getElementById('speedDisplay').innerText = Math.abs(Math.round(speed));
+        
+        // Check Mission
+        if (distance >= goal) {
+            showMissionComplete();
+        }
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw Road (Moving)
+        ctx.fillStyle = "#444";
+        ctx.fillRect(0, canvas.height/2, canvas.width, canvas.height/2);
+        
+        // Road Lines
+        ctx.strokeStyle = "white";
+        ctx.setLineDash([20, 20]);
+        ctx.lineDashOffset = -distance;
+        ctx.beginPath();
+        ctx.moveTo(0, canvas.height * 0.75);
+        ctx.lineTo(canvas.width, canvas.height * 0.75);
+        ctx.stroke();
+
+        // Draw Professional Bus (Top View/Side View representation)
+        ctx.fillStyle = "yellow";
+        ctx.fillRect(100, busY, 200, 60); // Bus Body
+        ctx.fillStyle = "black";
+        ctx.fillRect(120, busY - 5, 40, 10); // Windows
+        ctx.fillRect(180, busY - 5, 40, 10);
+    }
+
+    function gameLoop() {
+        update();
+        draw();
+        requestAnimationFrame(gameLoop);
+    }
+
+    // Timer Logic
+    setInterval(() => {
+        if (time > 0) {
+            time--;
+            document.getElementById('timeDisplay').innerText = time;
+        } else {
+            alert("Game Over! Time Up");
+            location.reload();
+        }
+    }, 1000);
+
+    function showMissionComplete() {
+        document.getElementById('message').style.display = 'block';
+    }
+
+    function nextLevel() {
+        level++;
+        distance = 0;
+        time = 60;
+        goal += 2000;
+        document.getElementById('levelDisplay').innerText = level;
+        document.getElementById('message').style.display = 'none';
+    }
+
+    gameLoop();
+</script>
+</body>
+  </html>
